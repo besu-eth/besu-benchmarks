@@ -42,5 +42,16 @@
     "runner_arch": "X64",
     "cpu_model": "AMD EPYC 7R13 Processor",
     "benchmark_count": 2
+  },
+  {
+    "sha": "28edf3910ce8a496ba52ff05327ddec4cceddba8",
+    "ref": "main",
+    "date": "2026-10-01T11:57:01Z",
+    "run_id": "36858089101",
+    "benchmark_filter": "AddOperation",
+    "runner_os": "Linux",
+    "runner_arch": "X64",
+    "cpu_model": "AMD EPYC 7R13 Processor",
+    "benchmark_count": 2
   }
 ]
