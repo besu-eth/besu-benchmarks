@@ -27,7 +27,7 @@ on:
 
 jobs:
   jmh-benchmarks:
-    runs-on: ubuntu-26.04
+    runs-on: [self-hosted, Linux, X64, m6a.2xlarge, besu-benchmarks-dedicated]
     timeout-minutes: 360
     permissions:
       contents: write
