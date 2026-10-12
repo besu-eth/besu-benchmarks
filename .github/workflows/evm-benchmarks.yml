@@ -5,6 +5,7 @@ on:
     - cron: '0 2 * * *'
     - cron: '0 10 * * *'
     - cron: '0 18 * * *'
+    - cron: '0 23 * * *'
   workflow_dispatch:
     inputs:
       besu_ref:
@@ -32,7 +33,7 @@ jobs:
     permissions:
       contents: write
     env:
-      BESU_REF: ${{ inputs.besu_ref || 'efddc0f59c534fc0269f4548afe68f1937f5ed39' }}
+      BESU_REF: ${{ inputs.besu_ref || (github.event.schedule == '0 23 * * *' && 'main') || 'efddc0f59c534fc0269f4548afe68f1937f5ed39' }}
       BESU_REPO: ${{ inputs.besu_repo || 'besu-eth/besu' }}
       BENCH_FILTER: ${{ inputs.benchmark_filter || '' }}
       GAS_PROFILER: ${{ github.event_name == 'schedule' && 'true' || inputs.gas_profiler }}
