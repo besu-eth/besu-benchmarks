@@ -2,10 +2,10 @@ name: EVM JMH Benchmarks
 
 on:
   schedule:
-    - cron: '0 2 * * *'
-    - cron: '0 10 * * *'
+    - cron: '0 0 * * *'
+    - cron: '0 6 * * *'
+    - cron: '0 12 * * *'
     - cron: '0 18 * * *'
-    - cron: '0 23 * * *'
   workflow_dispatch:
     inputs:
       besu_ref:
@@ -26,6 +26,10 @@ on:
         type: boolean
         default: true
 
+concurrency:
+  group: scheduled-job
+  cancel-in-progress: false
+
 jobs:
   jmh-benchmarks:
     runs-on: [self-hosted, Linux, X64, m6a.2xlarge, besu-benchmarks-dedicated]
@@ -33,7 +37,7 @@ jobs:
     permissions:
       contents: write
     env:
-      BESU_REF: ${{ inputs.besu_ref || (github.event.schedule == '0 23 * * *' && 'main') || 'efddc0f59c534fc0269f4548afe68f1937f5ed39' }}
+      BESU_REF: ${{ inputs.besu_ref || (github.event.schedule == '0 0 * * *' && 'main') || 'efddc0f59c534fc0269f4548afe68f1937f5ed39' }}
       BESU_REPO: ${{ inputs.besu_repo || 'besu-eth/besu' }}
       BENCH_FILTER: ${{ inputs.benchmark_filter || '' }}
       GAS_PROFILER: ${{ github.event_name == 'schedule' && 'true' || inputs.gas_profiler }}
