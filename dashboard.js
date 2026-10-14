@@ -257,11 +257,11 @@ function getFilteredSorted() {
 
   // Text filter
   if (query) {
-    rows = rows.filter(e =>
-      e._name.toLowerCase().includes(query) ||
-      e._params.toLowerCase().includes(query) ||
-      e.benchmark.toLowerCase().includes(query)
-    );
+    const queryWords = query.split(/\s+/).filter(Boolean);
+    rows = rows.filter(e => {
+      const haystack = `${e._name} ${e._params} ${e.benchmark}`.toLowerCase();
+      return queryWords.every(w => haystack.includes(w));
+    });
   }
 
   // Status filter
@@ -962,6 +962,11 @@ function recomputeNoise() {
 
   const rows = commonKeys.map(k => {
     const scores = indexed.map(m => m[k].primaryMetric.score);
+    const errors = indexed.map(m => m[k].primaryMetric.scoreError);
+    const finiteErrors = errors.filter(e => Number.isFinite(e));
+    const meanErr = finiteErrors.length > 0
+      ? finiteErrors.reduce((a, b) => a + b, 0) / finiteErrors.length
+      : null;
     const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
     const variance = scores.reduce((a, b) => a + (b - mean) ** 2, 0) / scores.length;
     const std = Math.sqrt(variance);
@@ -969,7 +974,7 @@ function recomputeNoise() {
     const min = Math.min(...scores);
     const max = Math.max(...scores);
     const entry = indexed[0][k];
-    return { k, cv, mean, std, min, max, entry, scores };
+    return { k, cv, mean, std, min, max, entry, scores, errors, meanErr };
   });
 
   rows.sort((a, b) => b.cv - a.cv);
@@ -1005,6 +1010,7 @@ function recomputeNoise() {
             <th>Benchmark</th>
             <th>Params</th>
             <th class="num">Mean (ns/op)</th>
+            <th class="num">&plusmn; Err</th>
             <th class="num">Std Dev</th>
             <th class="num">CV%</th>
             <th class="num">Min</th>
@@ -1025,10 +1031,11 @@ function applyNoiseFilter() {
   const search = (el('noise-search')?.value || '').toLowerCase();
   const cvFilter = el('noise-cv-filter')?.value || 'all';
 
+  const searchWords = search.split(/\s+/).filter(Boolean);
+
   const filtered = noiseRows.filter(r => {
-    const name = shortName(r.entry).toLowerCase();
-    const params = paramsDisplay(r.entry).toLowerCase();
-    const matchesSearch = !search || name.includes(search) || params.includes(search);
+    const haystack = `${shortName(r.entry)} ${paramsDisplay(r.entry)}`.toLowerCase();
+    const matchesSearch = searchWords.every(w => haystack.includes(w));
     const matchesCv =
       cvFilter === 'all' ||
       (cvFilter === 'stable' && r.cv < 5) ||
@@ -1043,12 +1050,18 @@ function applyNoiseFilter() {
   tbody.innerHTML = filtered.map(r => {
     const cvClass = r.cv < 5 ? 'cv-stable' : r.cv < 10 ? 'cv-medium' : 'cv-noisy';
     const cvLabel = r.cv < 5 ? 'stable' : r.cv < 10 ? 'medium' : 'noisy';
-    const scoreCells = r.scores.map(s => `<td class="num">${s.toFixed(2)}</td>`).join('');
+    const scoreCells = r.scores.map((s, i) => {
+      const err = r.errors[i];
+      const tooltip = Number.isFinite(err) ? ` title="&plusmn; ${err.toFixed(2)} ns/op"` : '';
+      return `<td class="num"${tooltip}>${s.toFixed(2)}</td>`;
+    }).join('');
+    const meanErrCell = r.meanErr !== null ? `&plusmn; ${r.meanErr.toFixed(2)}` : '&mdash;';
     return `
       <tr>
         <td>${escapeHTML(shortName(r.entry))}</td>
         <td class="muted">${escapeHTML(paramsDisplay(r.entry))}</td>
         <td class="num">${r.mean.toFixed(2)}</td>
+        <td class="num muted">${meanErrCell}</td>
         <td class="num">${r.std.toFixed(2)}</td>
         <td class="num"><span class="cv-badge ${cvClass}">${r.cv.toFixed(1)}% ${cvLabel}</span></td>
         <td class="num">${r.min.toFixed(2)}</td>
