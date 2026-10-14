@@ -1052,8 +1052,8 @@ function applyNoiseFilter() {
     const cvLabel = r.cv < 5 ? 'stable' : r.cv < 10 ? 'medium' : 'noisy';
     const scoreCells = r.scores.map((s, i) => {
       const err = r.errors[i];
-      const tooltip = Number.isFinite(err) ? ` title="&plusmn; ${err.toFixed(2)} ns/op"` : '';
-      return `<td class="num"${tooltip}>${s.toFixed(2)}</td>`;
+      const sub = Number.isFinite(err) ? `<div class="run-err">&plusmn; ${err.toFixed(2)}</div>` : '';
+      return `<td class="num">${s.toFixed(2)}${sub}</td>`;
     }).join('');
     const meanErrCell = r.meanErr !== null ? `&plusmn; ${r.meanErr.toFixed(2)}` : '&mdash;';
     return `
