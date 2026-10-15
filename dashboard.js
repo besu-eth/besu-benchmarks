@@ -466,8 +466,24 @@ function setTrendTabMode(mode) {
   }
 }
 
+let trendNightlyOnly = true;
+
+function setTrendNightly(checked) {
+  trendNightlyOnly = checked;
+  const a = el('trend-nightly-only');
+  const b = el('trend-tab-nightly-only');
+  if (a) a.checked = checked;
+  if (b) b.checked = checked;
+  if (selectedKey) renderInlineTrend(selectedKey);
+  const sel = el('trend-select');
+  if (sel && sel.value && activeTab === 'trend') renderTrendFromTab(sel.value);
+}
+
 async function loadTrendData(key) {
-  const slice = globalIndex.slice(-20);
+  const pool = trendNightlyOnly
+    ? globalIndex.filter(r => !r.trigger || r.trigger === 'schedule')
+    : globalIndex;
+  const slice = pool.slice(-20);
   const labels      = [];
   const scores      = [];
   const errors      = [];

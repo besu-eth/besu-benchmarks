@@ -20,6 +20,10 @@ on:
         description: 'JMH include pattern — leave empty to run all benchmarks'
         required: false
         default: ''
+      benchmark_excludes:
+        description: 'JMH exclude pattern — comma-separated, e.g. MOD,v2'
+        required: false
+        default: ''
       gas_profiler:
         description: 'Enable GasProfiler to emit gas cost as a secondary metric (requires gas profiler support in the target Besu ref)'
         required: false
@@ -40,7 +44,9 @@ jobs:
       BESU_REF: ${{ inputs.besu_ref || (github.event.schedule == '0 0 * * *' && 'main') || 'efddc0f59c534fc0269f4548afe68f1937f5ed39' }}
       BESU_REPO: ${{ inputs.besu_repo || 'besu-eth/besu' }}
       BENCH_FILTER: ${{ inputs.benchmark_filter || '' }}
+      BENCH_EXCLUDES: ${{ inputs.benchmark_excludes || '' }}
       GAS_PROFILER: ${{ github.event_name == 'schedule' && 'true' || inputs.gas_profiler }}
+      RUN_TRIGGER: ${{ github.event_name }}
 
     steps:
       - name: Checkout besu-benchmarks
@@ -97,7 +103,11 @@ jobs:
           if [ "${GAS_PROFILER}" = "true" ]; then
             ARGS+=(-PgasProfiler=true)
           fi
-          ARGS+=(-Pexcludes=executeOperationWithEmptyHashCache)
+          EXCLUDES="executeOperationWithEmptyHashCache"
+          if [ -n "${BENCH_EXCLUDES}" ]; then
+            EXCLUDES="${BENCH_EXCLUDES},${EXCLUDES}"
+          fi
+          ARGS+=("-Pexcludes=${EXCLUDES}")
           ./gradlew :ethereum:core:jmh "${ARGS[@]}"
 
       - name: Stage results and metadata
@@ -120,6 +130,7 @@ jobs:
               "date": e["RUN_DATE"],
               "run_id": e["GITHUB_RUN_ID"],
               "benchmark_filter": e.get("BENCH_FILTER") or "all",
+              "trigger": e.get("RUN_TRIGGER", ""),
               "runner_os": e["RUNNER_OS"],
               "runner_arch": e["RUNNER_ARCH"],
               "java_version": e["JAVA_VERSION"],

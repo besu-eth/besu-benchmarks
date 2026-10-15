@@ -37,6 +37,7 @@ runs.append({
     "runner_os": meta["runner_os"],
     "runner_arch": meta["runner_arch"],
     "cpu_model": meta.get("cpu_model", ""),
+    "trigger": meta.get("trigger", ""),
     "benchmark_count": len(data),
 })
 
