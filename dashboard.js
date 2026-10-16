@@ -390,13 +390,14 @@ async function renderInlineTrend(key) {
   lastTrendData = await loadTrendData(key);
 
   destroyChart('trendChart');
+  resetBoxView('inline');
   if (trendMode === 'mgas') {
     trendChart = lastTrendData.hasMgas
       ? buildBoxPlotChart('trend-chart', lastTrendData.labels, lastTrendData.mgasRaw, 'MGas/s (higher is better)')
       : null;
   } else {
     trendChart = trendMode === 'box'
-      ? buildBoxPlotChart('trend-chart', lastTrendData.labels, lastTrendData.raw, 'ns/op (lower is better)')
+      ? buildTrendBox('inline')
       : buildLineChart('trend-chart', lastTrendData.labels, lastTrendData.scores, lastTrendData.errors);
   }
 }
@@ -415,13 +416,14 @@ async function renderTrendFromTab(key) {
   lastTrendTabData = await loadTrendData(key);
 
   destroyChart('trendTabChart');
+  resetBoxView('tab');
   if (trendTabMode === 'mgas') {
     trendTabChart = lastTrendTabData.hasMgas
       ? buildBoxPlotChart('trend-tab-chart', lastTrendTabData.labels, lastTrendTabData.mgasRaw, 'MGas/s (higher is better)')
       : null;
   } else {
     trendTabChart = trendTabMode === 'box'
-      ? buildBoxPlotChart('trend-tab-chart', lastTrendTabData.labels, lastTrendTabData.raw, 'ns/op (lower is better)')
+      ? buildTrendBox('tab')
       : buildLineChart('trend-tab-chart', lastTrendTabData.labels, lastTrendTabData.scores, lastTrendTabData.errors);
   }
 }
@@ -435,13 +437,14 @@ function setTrendMode(mode) {
   if (!lastTrendData) return;
   el('trend-sub').textContent = trendSubText(mode);
   destroyChart('trendChart');
+  resetBoxView('inline');
   if (mode === 'mgas') {
     trendChart = lastTrendData.hasMgas
       ? buildBoxPlotChart('trend-chart', lastTrendData.labels, lastTrendData.mgasRaw, 'MGas/s (higher is better)')
       : null;
   } else {
     trendChart = mode === 'box'
-      ? buildBoxPlotChart('trend-chart', lastTrendData.labels, lastTrendData.raw, 'ns/op (lower is better)')
+      ? buildTrendBox('inline')
       : buildLineChart('trend-chart', lastTrendData.labels, lastTrendData.scores, lastTrendData.errors);
   }
 }
@@ -455,18 +458,23 @@ function setTrendTabMode(mode) {
   if (!lastTrendTabData) return;
   el('trend-tab-sub').textContent = trendSubText(mode);
   destroyChart('trendTabChart');
+  resetBoxView('tab');
   if (mode === 'mgas') {
     trendTabChart = lastTrendTabData.hasMgas
       ? buildBoxPlotChart('trend-tab-chart', lastTrendTabData.labels, lastTrendTabData.mgasRaw, 'MGas/s (higher is better)')
       : null;
   } else {
     trendTabChart = mode === 'box'
-      ? buildBoxPlotChart('trend-tab-chart', lastTrendTabData.labels, lastTrendTabData.raw, 'ns/op (lower is better)')
+      ? buildTrendBox('tab')
       : buildLineChart('trend-tab-chart', lastTrendTabData.labels, lastTrendTabData.scores, lastTrendTabData.errors);
   }
 }
 
 let trendNightlyOnly = true;
+let trendBoxZoom     = { day: null };
+let trendTabBoxZoom  = { day: null };
+let trendDistChart     = null;
+let trendTabDistChart  = null;
 
 function setTrendNightly(checked) {
   trendNightlyOnly = checked;
@@ -488,6 +496,9 @@ async function loadTrendData(key) {
   const scores      = [];
   const errors      = [];
   const raw         = [];
+  const dates       = [];
+  const times       = [];
+  const shas        = [];
   const gasPerOpByRun = [];
 
   for (const run of slice) {
@@ -500,6 +511,9 @@ async function loadTrendData(key) {
         errors.push(match.primaryMetric.scoreError);
         const rd = match.primaryMetric.rawData;
         raw.push(Array.isArray(rd) ? rd.flat() : []);
+        dates.push(fmtDateShort(run.date));
+        times.push(run.date ? new Date(run.date).toISOString().slice(11, 16) : '—');
+        shas.push(shortenSHA(run.sha));
         gasPerOpByRun.push(match.secondaryMetrics?.gas?.score ?? null);
       }
     } catch (_) { /* skip failed loads */ }
@@ -512,7 +526,144 @@ async function loadTrendData(key) {
   });
   const hasMgas = mgasScores.some(v => v !== null);
 
-  return { labels, scores, errors, raw, hasMgas, mgasScores, mgasRaw };
+  return { labels, scores, errors, raw, dates, times, shas, hasMgas, mgasScores, mgasRaw };
+}
+
+function resetBoxView(which) {
+  if (which === 'inline') trendBoxZoom = { day: null };
+  else trendTabBoxZoom = { day: null };
+  hideDist(which);
+  const nav = el(which === 'inline' ? 'trend-box-nav' : 'trend-tab-box-nav');
+  if (nav) nav.innerHTML = '';
+}
+
+function hideDist(which) {
+  const wrap = el(which === 'inline' ? 'trend-dist-wrap' : 'trend-tab-dist-wrap');
+  if (wrap) wrap.style.display = 'none';
+  if (which === 'inline' && trendDistChart) { trendDistChart.destroy(); trendDistChart = null; }
+  if (which === 'tab' && trendTabDistChart) { trendTabDistChart.destroy(); trendTabDistChart = null; }
+}
+
+function exitDayZoom(which) {
+  if (which === 'inline') {
+    trendBoxZoom = { day: null };
+    destroyChart('trendChart');
+    trendChart = buildTrendBox('inline');
+  } else {
+    trendTabBoxZoom = { day: null };
+    destroyChart('trendTabChart');
+    trendTabChart = buildTrendBox('tab');
+  }
+}
+
+function buildTrendBox(which) {
+  const data = which === 'inline' ? lastTrendData : lastTrendTabData;
+  const zoom = which === 'inline' ? trendBoxZoom : trendTabBoxZoom;
+  const canvasId = which === 'inline' ? 'trend-chart' : 'trend-tab-chart';
+  const navId = which === 'inline' ? 'trend-box-nav' : 'trend-tab-box-nav';
+  hideDist(which);
+
+  let labels, rawSets, runIdxs = null;
+  if (zoom.day === null) {
+    const order = [], byDay = {};
+    data.dates.forEach((d, i) => {
+      if (!byDay[d]) { byDay[d] = []; order.push(d); }
+      byDay[d].push(i);
+    });
+    labels = order;
+    rawSets = order.map(d => byDay[d].flatMap(i => data.raw[i]));
+  } else {
+    runIdxs = data.dates.map((d, i) => (d === zoom.day ? i : -1)).filter(i => i >= 0);
+    labels = runIdxs.map(i => `${data.times[i]} (${data.shas[i]})`);
+    rawSets = runIdxs.map(i => data.raw[i]);
+  }
+
+  const nav = el(navId);
+  if (nav) {
+    nav.innerHTML = zoom.day === null
+      ? '<span style="font-size:12px; color:var(--muted);">Click a day to see its individual runs</span>'
+      : `<button class="btn" style="padding:3px 10px; font-size:12px;" onclick="exitDayZoom('${which}')">&larr; All days</button>
+         <span style="font-size:12px; color:var(--muted);">${escapeHTML(zoom.day)} &mdash; click a run to see its distribution</span>`;
+  }
+
+  const onClick = (evt, elements) => {
+    if (!elements || elements.length === 0) return;
+    const idx = elements[0].index;
+    if (zoom.day === null) {
+      zoom.day = labels[idx];
+      setTimeout(() => {
+        destroyChart(which === 'inline' ? 'trendChart' : 'trendTabChart');
+        const next = buildTrendBox(which);
+        if (which === 'inline') trendChart = next; else trendTabChart = next;
+      }, 0);
+    } else {
+      showRunDistribution(which, runIdxs[idx]);
+    }
+  };
+  return buildBoxPlotChart(canvasId, labels, rawSets, 'ns/op (lower is better)', onClick);
+}
+
+function showRunDistribution(which, runIdx) {
+  const data = which === 'inline' ? lastTrendData : lastTrendTabData;
+  const pts = (data.raw[runIdx] || []).filter(v => Number.isFinite(v));
+  if (pts.length === 0) return;
+
+  const mean = pts.reduce((a, b) => a + b, 0) / pts.length;
+  const variance = pts.reduce((a, b) => a + (b - mean) ** 2, 0) / pts.length;
+  const std = Math.sqrt(variance);
+  const s = std > 0 ? std : Math.max(Math.abs(mean) * 0.001, 1e-9);
+
+  const wrapId = which === 'inline' ? 'trend-dist-wrap' : 'trend-tab-dist-wrap';
+  const titleId = which === 'inline' ? 'trend-dist-title' : 'trend-tab-dist-title';
+  const canvasId = which === 'inline' ? 'trend-dist-chart' : 'trend-tab-dist-chart';
+
+  hideDist(which);
+  el(wrapId).style.display = 'block';
+  el(titleId).textContent =
+    `${data.labels[runIdx]} ${data.times[runIdx]} UTC — gaussian fit of ${pts.length} measurements, ` +
+    `mean ${mean.toFixed(2)} ns/op, std ${std.toFixed(2)}`;
+
+  const xs = [], ys = [];
+  const lo = mean - 4 * s, hi = mean + 4 * s, steps = 100;
+  for (let i = 0; i <= steps; i++) {
+    const x = lo + ((hi - lo) * i) / steps;
+    xs.push(x.toFixed(2));
+    ys.push(Math.exp(-((x - mean) ** 2) / (2 * s * s)) / (s * Math.sqrt(2 * Math.PI)));
+  }
+
+  const ctx = el(canvasId).getContext('2d');
+  const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: xs,
+      datasets: [{
+        data: ys,
+        borderColor: '#bc8cff',
+        backgroundColor: '#bc8cff22',
+        borderWidth: 2,
+        pointRadius: 0,
+        fill: true,
+        tension: 0.3,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      scales: {
+        x: {
+          title: { display: true, text: 'ns/op', color: '#8b949e' },
+          ticks: { color: '#8b949e', maxTicksLimit: 8 },
+          grid:  { color: '#30363d' }
+        },
+        y: {
+          ticks: { display: false },
+          grid:  { color: '#30363d' }
+        }
+      }
+    }
+  });
+  if (which === 'inline') trendDistChart = chart; else trendTabDistChart = chart;
 }
 
 function buildLineChart(canvasId, labels, scores, errors) {
@@ -565,7 +716,7 @@ function buildLineChart(canvasId, labels, scores, errors) {
 }
 
 // chartjs-chart-boxplot summarises each inner array (Tukey, 1.5×IQR whiskers).
-function buildBoxPlotChart(canvasId, labels, rawByRun, yLabel = 'ns/op (lower is better)') {
+function buildBoxPlotChart(canvasId, labels, rawByRun, yLabel = 'ns/op (lower is better)', onClick = null) {
   const ctx = el(canvasId).getContext('2d');
 
   // Tight-scale Y so stable benchmarks don't render as hairlines.
@@ -599,6 +750,7 @@ function buildBoxPlotChart(canvasId, labels, rawByRun, yLabel = 'ns/op (lower is
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
+      ...(onClick ? { onClick } : {}),
       plugins: {
         legend: { display: false },
         tooltip: {
@@ -638,7 +790,7 @@ function buildBoxPlotChart(canvasId, labels, rawByRun, yLabel = 'ns/op (lower is
 function trendSubText(mode) {
   if (mode === 'mgas') return 'Per-run MGas/s distribution derived from raw ns/op measurements (higher is better).';
   return mode === 'box'
-    ? 'Per-run distribution of raw ns/op measurements. Each box = 15 points (3 forks × 5 iterations).'
+    ? 'Box plots of raw ns/op measurements grouped by day. Click a day to see its runs, click a run for its distribution.'
     : 'Historical ns/op across stored runs (lower is better).';
 }
 
