@@ -3,9 +3,8 @@ name: EVM JMH Benchmarks
 on:
   schedule:
     - cron: '0 0 * * *'
-    - cron: '0 6 * * *'
-    - cron: '0 12 * * *'
-    - cron: '0 18 * * *'
+    - cron: '0 8 * * *'
+    - cron: '0 16 * * *'
   workflow_dispatch:
     inputs:
       besu_ref:
@@ -23,7 +22,7 @@ on:
       benchmark_excludes:
         description: 'JMH exclude pattern — comma-separated, e.g. MOD,v2'
         required: false
-        default: ''
+        default: 'V2'
       gas_profiler:
         description: 'Enable GasProfiler to emit gas cost as a secondary metric (requires gas profiler support in the target Besu ref)'
         required: false
@@ -37,14 +36,16 @@ concurrency:
 jobs:
   jmh-benchmarks:
     runs-on: [self-hosted, Linux, X64, m6a.2xlarge, besu-benchmarks-dedicated]
-    timeout-minutes: 360
+    timeout-minutes: 720
     permissions:
       contents: write
     env:
-      BESU_REF: ${{ inputs.besu_ref || (github.event.schedule == '0 0 * * *' && 'main') || 'efddc0f59c534fc0269f4548afe68f1937f5ed39' }}
+      BESU_REF: ${{ inputs.besu_ref || (github.event.schedule == '0 0 * * *' && 'main') || 'a3859d6b017b87fa15d4ed2cb2c1b906dfb5bf4a' }}
       BESU_REPO: ${{ inputs.besu_repo || 'besu-eth/besu' }}
       BENCH_FILTER: ${{ inputs.benchmark_filter || '' }}
-      BENCH_EXCLUDES: ${{ inputs.benchmark_excludes || '' }}
+      # V2 benchmarks are excluded by default: they are not gas-wired yet and will
+      # get their own separate run once EVM v2 work starts.
+      BENCH_EXCLUDES: ${{ inputs.benchmark_excludes || 'V2' }}
       GAS_PROFILER: ${{ github.event_name == 'schedule' && 'true' || inputs.gas_profiler }}
       RUN_TRIGGER: ${{ github.event_name }}
 
