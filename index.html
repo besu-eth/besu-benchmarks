@@ -357,6 +357,7 @@
   <span>Date: <strong id="meta-date">—</strong></span>
   <span>Runner: <strong id="meta-runner">—</strong></span>
   <span>Benchmarks: <strong id="meta-count">—</strong></span>
+  <span>Compared against: <strong id="meta-baseline">—</strong></span>
 </div>
 
 <nav>
@@ -501,6 +502,7 @@
         <select id="compare-b"></select>
       </div>
       <button class="btn" onclick="runComparison()" id="compare-btn">Compare</button>
+      <button class="btn" onclick="reverseComparison()" id="compare-reverse-btn" title="Swap baseline and current">&#8646; Reverse</button>
     </div>
     <div id="compare-result"></div>
   </div>
