@@ -122,7 +122,10 @@ function showTab(tab) {
 
 async function renderLatestRun() {
   const latest = globalIndex[globalIndex.length - 1];
-  const prev   = globalIndex.length >= 2 ? globalIndex[globalIndex.length - 2] : null;
+  const prev = globalIndex
+    .slice(0, -1)
+    .filter(r => r.ref === latest.ref)
+    .pop() || null;
 
   // Populate meta bar
   el('meta-bar').classList.remove('hidden');
@@ -131,6 +134,9 @@ async function renderLatestRun() {
   el('meta-date').textContent    = fmtDateShort(latest.date);
   el('meta-runner').textContent  = `${latest.runner_os || '?'} / ${latest.runner_arch || '?'}`;
   el('meta-count').textContent   = latest.benchmark_count || '—';
+  el('meta-baseline').textContent = prev
+    ? `${shortenSHA(prev.sha)} — ${fmtDateShort(prev.date)} — ${prev.benchmark_count} benchmarks`
+    : 'none (no earlier run with same ref)';
 
   // Load results
   el('bench-tbody').innerHTML = '<tr><td colspan="7" class="msg">Loading…</td></tr>';
@@ -150,6 +156,9 @@ async function renderLatestRun() {
       prevResults = [];
       prevIndex   = null;
     }
+  } else {
+    prevResults = [];
+    prevIndex   = null;
   }
   prevMap = {};
   for (const e of prevResults) prevMap[benchKey(e)] = e;
@@ -845,6 +854,15 @@ function populateRunDropdowns() {
     el('compare-a').value = globalIndex[0].run_id;
     el('compare-b').value = globalIndex[0].run_id;
   }
+}
+
+function reverseComparison() {
+  const a = el('compare-a');
+  const b = el('compare-b');
+  const tmp = a.value;
+  a.value = b.value;
+  b.value = tmp;
+  runComparison();
 }
 
 async function runComparison() {
