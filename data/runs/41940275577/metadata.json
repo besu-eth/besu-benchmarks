@@ -1,0 +1,15 @@
+{
+  "sha": "29abdb4de530dcc4e59a200be0bc1309f29be34d",
+  "ref": "main",
+  "besu_repo": "besu-eth/besu",
+  "date": "2026-11-05T07:45:02Z",
+  "run_id": "41940275577",
+  "benchmark_filter": "all",
+  "trigger": "schedule",
+  "runner_os": "Linux",
+  "runner_arch": "X64",
+  "java_version": "openjdk version 25.0.4.1 2026-08-18 LTS",
+  "cpu_model": "AMD EPYC 7R13 Processor",
+  "cpu_cores": "8",
+  "ram_total": "30Gi"
+}
