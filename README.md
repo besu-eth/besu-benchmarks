@@ -4,6 +4,8 @@ Continuous benchmarking pipeline for [Hyperledger Besu](https://github.com/besu-
 
 Original commit history available at https://github.com/bomanaps/besu-benchmarks
 
+Full documentation lives in [docs/README.md](docs/README.md), covering how to run benchmarks, the nightly pipeline, reading the dashboard, noise and significance, and adding new benchmarks.
+
 ## Dashboard
 
 Live results: https://besu-eth.github.io/besu-benchmarks
