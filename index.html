@@ -385,6 +385,7 @@
           <option value="noisy">Noisy only</option>
         </select>
       </label>
+      <a href="https://github.com/besu-eth/besu-benchmarks/blob/main/docs/reading-the-dashboard.md" target="_blank" rel="noopener" style="font-size:12px; color:var(--accent); text-decoration:none;">How to read this</a>
       <span id="result-count"></span>
     </div>
 
@@ -394,11 +395,11 @@
           <tr>
             <th onclick="sortBy('name')">Benchmark <span class="sort-arrow" id="arr-name"></span></th>
             <th onclick="sortBy('params')">Params <span class="sort-arrow" id="arr-params"></span></th>
-            <th onclick="sortBy('score')" class="sorted">Score (ns/op) <span class="sort-arrow" id="arr-score">↑</span></th>
-            <th onclick="sortBy('mgas')" title="Upper-bound throughput — static-cost opcodes only. Dynamic-cost opcodes show '—'.">MGas/s <span class="sort-arrow" id="arr-mgas"></span></th>
-            <th onclick="sortBy('error')">± Error <span class="sort-arrow" id="arr-error"></span></th>
-            <th onclick="sortBy('delta')">vs Previous <span class="sort-arrow" id="arr-delta"></span></th>
-            <th onclick="sortBy('status')">Status <span class="sort-arrow" id="arr-status"></span></th>
+            <th onclick="sortBy('score')" class="sorted" title="Average time for one execution of the operation, averaged over 5 JVM forks. Lower is better.">Score (ns/op) <span class="sort-arrow" id="arr-score">↑</span></th>
+            <th onclick="sortBy('mgas')" title="Gas throughput: gas cost x 1000 / ns per op. Higher is better. Static-cost opcodes only, others show a dash.">MGas/s <span class="sort-arrow" id="arr-mgas"></span></th>
+            <th onclick="sortBy('error')" title="How uncertain this score is (JMH 99.9% confidence half-width). A big error relative to the score means the forks disagreed.">± Error <span class="sort-arrow" id="arr-error"></span></th>
+            <th onclick="sortBy('delta')" title="Percentage change against the baseline run shown in the top bar.">vs Previous <span class="sort-arrow" id="arr-delta"></span></th>
+            <th onclick="sortBy('status')" title="ok: real but small change. regression/faster: more than 5% change with non-overlapping error ranges. noisy: difference is within measurement uncertainty.">Status <span class="sort-arrow" id="arr-status"></span></th>
           </tr>
         </thead>
         <tbody id="bench-tbody"></tbody>
