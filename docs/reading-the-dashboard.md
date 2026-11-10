@@ -59,3 +59,17 @@ Pick a commit that has two or more stored runs, every run of it appears grouped 
 | noisy | 10% or above | single run differences of this size can be pure noise |
 
 Since all runs in this view are the same code on the same machine, every spread you see here is measurement noise, which makes this tab the calibration for how much to trust the others.
+
+## How each number is calculated
+
+Terminology first: one **run** is one execution of the workflow, inside which every benchmark runs 5 JVM forks with 5 measurement iterations each, so one score summarizes 25 measurements of that benchmark.
+
+| Number | Calculation | Source |
+|---|---|---|
+| Score | JMH averages the 25 measured iterations | JMH, reported in `results.json` as `primaryMetric.score` |
+| ± Error | JMH takes the spread of the iterations, divides by the square root of their count, and scales it with a t-distribution factor for 99.9% confidence | [JMH AbstractStatistics.getMeanErrorAt](https://github.com/openjdk/jmh/blob/master/jmh-core/src/main/java/org/openjdk/jmh/util/AbstractStatistics.java) |
+| MGas/s | `gas x 1000 / ns_per_op`, using the gas cost the GasProfiler emits | [`computeMGasPerSec` in dashboard.js](https://github.com/besu-eth/besu-benchmarks/blob/main/dashboard.js) |
+| vs Previous | `(current score - baseline score) / baseline score x 100`, baseline being the most recent earlier run with the same ref | `renderLatestRun` in dashboard.js |
+| noisy status | Each run's score forms a range from score minus error to score plus error, the row is marked noisy when the two runs' ranges overlap, meaning the difference is smaller than the measurement uncertainty | the overlap check in `renderLatestRun`, dashboard.js |
+| CV% | Standard deviation of the selected runs' scores divided by their mean, times 100 | `recomputeNoise` in dashboard.js |
+| Compare speedup | `baseline score / current score`, shown as faster or slower past 5% | `renderCompareTable` in dashboard.js |
