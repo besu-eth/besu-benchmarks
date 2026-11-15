@@ -318,7 +318,7 @@ function statusOrder(e) {
 
 function statusLabel(e) {
   if (!e._hasPrev)                                    return '<span style="color:var(--muted)">—</span>';
-  if (e._noisy)                                       return '<span style="color:var(--muted)" title="Confidence intervals overlap — measurement noise">⚠ noisy</span>';
+  if (e._noisy)                                       return '<span style="color:var(--muted)" title="The two runs\' ranges (score plus or minus error) overlap, so this difference could be measurement noise rather than a real change">⚠ noisy</span>';
   if (e._delta > REGRESSION_THRESHOLD_PCT)            return '<span style="color:var(--red)">✗ regression</span>';
   if (e._delta < -REGRESSION_THRESHOLD_PCT)           return '<span style="color:var(--green)">↑ faster</span>';
   return '<span style="color:var(--muted)">✓ ok</span>';
@@ -932,8 +932,8 @@ function renderCompareTable(dataA, dataB, metaA, metaB) {
   const labelA = escapeHTML(`${fmtDateShort(metaA?.date)} ${shortenSHA(metaA?.sha)}`);
   const labelB = escapeHTML(`${fmtDateShort(metaB?.date)} ${shortenSHA(metaB?.sha)}`);
 
-  const regression = rows.filter(r => r.speedup !== null && r.speedup < 0.9).length;
-  const improved   = rows.filter(r => r.speedup !== null && r.speedup > 1.1).length;
+  const regression = rows.filter(r => r.speedup !== null && r.speedup < 0.95).length;
+  const improved   = rows.filter(r => r.speedup !== null && r.speedup > 1.05).length;
 
   const tableRows = rows.map(r => {
     const name   = r.a ? shortName(r.a) : shortName(r.b);
@@ -945,9 +945,9 @@ function renderCompareTable(dataA, dataB, metaA, metaB) {
     if (r.speedup !== null) {
       const pct  = ((r.speedup - 1) * 100).toFixed(1);
       const sign = r.speedup >= 1 ? '+' : '';
-      const cls  = r.speedup > 1.1 ? 'faster' : (r.speedup < 0.9 ? 'slower' : 'same');
-      const label = r.speedup > 1.1 ? `${r.speedup.toFixed(2)}x faster` :
-                    r.speedup < 0.9 ? `${(1/r.speedup).toFixed(2)}x slower` : 'similar';
+      const cls  = r.speedup > 1.05 ? 'faster' : (r.speedup < 0.95 ? 'slower' : 'same');
+      const label = r.speedup > 1.05 ? `${r.speedup.toFixed(2)}x faster` :
+                    r.speedup < 0.95 ? `${(1/r.speedup).toFixed(2)}x slower` : 'similar';
       speedupCell = `<span class="${cls}">${label}</span> <span style="color:var(--muted);font-size:11px;">(${sign}${pct}%)</span>`;
     }
 
@@ -970,8 +970,8 @@ function renderCompareTable(dataA, dataB, metaA, metaB) {
       <span>Run A: <strong style="color:var(--text);">${labelA}</strong></span>
       <span>Run B: <strong style="color:var(--text);">${labelB}</strong></span>
       <span>Compared: <strong style="color:var(--text);">${rows.filter(r=>r.status==='both').length}</strong></span>
-      <span style="color:var(--red);">Regressions (&gt;10%): <strong>${regression}</strong></span>
-      <span style="color:var(--green);">Improvements (&gt;10%): <strong>${improved}</strong></span>
+      <span style="color:var(--red);">Regressions (&gt;5%): <strong>${regression}</strong></span>
+      <span style="color:var(--green);">Improvements (&gt;5%): <strong>${improved}</strong></span>
     </div>
     <div class="table-wrap">
       <table>
