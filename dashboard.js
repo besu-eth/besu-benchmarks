@@ -402,7 +402,7 @@ async function renderInlineTrend(key) {
   resetBoxView('inline');
   if (trendMode === 'mgas') {
     trendChart = lastTrendData.hasMgas
-      ? buildBoxPlotChart('trend-chart', lastTrendData.labels, lastTrendData.mgasRaw, 'MGas/s (higher is better)')
+      ? buildBoxPlotChart('trend-chart', lastTrendData.labels, splitSetsByRef(lastTrendData.mgasRaw, lastTrendData.refs) || lastTrendData.mgasRaw, 'MGas/s (higher is better)')
       : null;
   } else {
     trendChart = trendMode === 'box'
@@ -428,7 +428,7 @@ async function renderTrendFromTab(key) {
   resetBoxView('tab');
   if (trendTabMode === 'mgas') {
     trendTabChart = lastTrendTabData.hasMgas
-      ? buildBoxPlotChart('trend-tab-chart', lastTrendTabData.labels, lastTrendTabData.mgasRaw, 'MGas/s (higher is better)')
+      ? buildBoxPlotChart('trend-tab-chart', lastTrendTabData.labels, splitSetsByRef(lastTrendTabData.mgasRaw, lastTrendTabData.refs) || lastTrendTabData.mgasRaw, 'MGas/s (higher is better)')
       : null;
   } else {
     trendTabChart = trendTabMode === 'box'
@@ -449,7 +449,7 @@ function setTrendMode(mode) {
   resetBoxView('inline');
   if (mode === 'mgas') {
     trendChart = lastTrendData.hasMgas
-      ? buildBoxPlotChart('trend-chart', lastTrendData.labels, lastTrendData.mgasRaw, 'MGas/s (higher is better)')
+      ? buildBoxPlotChart('trend-chart', lastTrendData.labels, splitSetsByRef(lastTrendData.mgasRaw, lastTrendData.refs) || lastTrendData.mgasRaw, 'MGas/s (higher is better)')
       : null;
   } else {
     trendChart = mode === 'box'
@@ -470,7 +470,7 @@ function setTrendTabMode(mode) {
   resetBoxView('tab');
   if (mode === 'mgas') {
     trendTabChart = lastTrendTabData.hasMgas
-      ? buildBoxPlotChart('trend-tab-chart', lastTrendTabData.labels, lastTrendTabData.mgasRaw, 'MGas/s (higher is better)')
+      ? buildBoxPlotChart('trend-tab-chart', lastTrendTabData.labels, splitSetsByRef(lastTrendTabData.mgasRaw, lastTrendTabData.refs) || lastTrendTabData.mgasRaw, 'MGas/s (higher is better)')
       : null;
   } else {
     trendTabChart = mode === 'box'
@@ -574,6 +574,8 @@ function buildTrendBox(which) {
   const navId = which === 'inline' ? 'trend-box-nav' : 'trend-tab-box-nav';
   hideDist(which);
 
+  const uniqueRefs = data.refs ? [...new Set(data.refs)] : [];
+
   let labels, rawSets, runIdxs = null;
   if (zoom.day === null) {
     const order = [], byDay = {};
@@ -582,11 +584,22 @@ function buildTrendBox(which) {
       byDay[d].push(i);
     });
     labels = order;
-    rawSets = order.map(d => byDay[d].flatMap(i => data.raw[i]));
+    rawSets = uniqueRefs.length > 1
+      ? uniqueRefs.map((ref, ri) => ({
+          label: refDisplayName(ref),
+          color: REF_COLORS[ri % REF_COLORS.length],
+          data: order.map(d => {
+            const pts = byDay[d].filter(i => data.refs[i] === ref).flatMap(i => data.raw[i]);
+            return pts.length ? pts : null;
+          }),
+        }))
+      : order.map(d => byDay[d].flatMap(i => data.raw[i]));
   } else {
     runIdxs = data.dates.map((d, i) => (d === zoom.day ? i : -1)).filter(i => i >= 0);
     labels = runIdxs.map(i => `${data.times[i]} (${data.shas[i]})`);
-    rawSets = runIdxs.map(i => data.raw[i]);
+    const runRaw  = runIdxs.map(i => data.raw[i]);
+    const runRefs = data.refs ? runIdxs.map(i => data.refs[i]) : null;
+    rawSets = splitSetsByRef(runRaw, runRefs) || runRaw;
   }
 
   const nav = el(navId);
@@ -677,14 +690,32 @@ function showRunDistribution(which, runIdx) {
   if (which === 'inline') trendDistChart = chart; else trendTabDistChart = chart;
 }
 
+const REF_COLORS = ['#388bfd', '#f0883e', '#3fb950', '#db61a2'];
+
+function refDisplayName(ref) {
+  return ref === 'main' ? 'latest main' : `pinned (${shortenSHA(ref)})`;
+}
+
+// One {label, color, data} per ref, data null-padded where another ref's
+// entry sits, so each ref renders as its own dataset over shared labels.
+// Returns null when the entries all share one ref.
+function splitSetsByRef(sets, refs) {
+  const uniqueRefs = refs ? [...new Set(refs)] : [];
+  if (uniqueRefs.length < 2) return null;
+  return uniqueRefs.map((ref, i) => ({
+    label: refDisplayName(ref),
+    color: REF_COLORS[i % REF_COLORS.length],
+    data: sets.map((s, j) => (refs[j] === ref ? s : null)),
+  }));
+}
+
 function buildLineChart(canvasId, labels, scores, errors, refs = null) {
   const ctx = el(canvasId).getContext('2d');
 
-  const REF_COLORS = ['#388bfd', '#f0883e', '#3fb950', '#db61a2'];
   const uniqueRefs = refs ? [...new Set(refs)] : [];
   const datasets = uniqueRefs.length > 1
     ? uniqueRefs.map((ref, i) => ({
-        label: ref === 'main' ? 'latest main' : `pinned (${shortenSHA(ref)})`,
+        label: refDisplayName(ref),
         data: scores.map((s, j) => (refs[j] === ref ? s : null)),
         borderColor: REF_COLORS[i % REF_COLORS.length],
         backgroundColor: REF_COLORS[i % REF_COLORS.length] + '22',
@@ -748,11 +779,43 @@ function buildLineChart(canvasId, labels, scores, errors, refs = null) {
 }
 
 // chartjs-chart-boxplot summarises each inner array (Tukey, 1.5×IQR whiskers).
+// rawByRun is either one array of measurement arrays (single dataset), or an
+// array of {label, color, data} objects from splitSetsByRef (one dataset per ref).
 function buildBoxPlotChart(canvasId, labels, rawByRun, yLabel = 'ns/op (lower is better)', onClick = null) {
   const ctx = el(canvasId).getContext('2d');
 
+  const isSplit = rawByRun.length > 0 && !Array.isArray(rawByRun[0]);
+  const boxStyle = {
+    borderWidth: 1.5,
+    medianColor: '#f0f6fc',
+    itemRadius: 2,
+    itemStyle: 'circle',
+    itemBackgroundColor: '#8b949e88',
+    outlierRadius: 3,
+    outlierBackgroundColor: '#f8514933',
+    outlierBorderColor: '#f85149',
+  };
+  const datasets = isSplit
+    ? rawByRun.map(d => ({
+        label: d.label,
+        data: d.data,
+        backgroundColor: d.color + '33',
+        borderColor: d.color,
+        ...boxStyle,
+      }))
+    : [{
+        label: 'ns/op distribution',
+        data: rawByRun,
+        backgroundColor: '#388bfd33',
+        borderColor: '#388bfd',
+        ...boxStyle,
+      }];
+
   // Tight-scale Y so stable benchmarks don't render as hairlines.
-  const flat = rawByRun.flat().filter(v => Number.isFinite(v));
+  const flat = datasets
+    .flatMap(d => d.data)
+    .flat()
+    .filter(v => Number.isFinite(v));
   const dataMin = flat.length ? Math.min(...flat) : 0;
   const dataMax = flat.length ? Math.max(...flat) : 1;
   const pad     = Math.max((dataMax - dataMin) * 0.15, dataMax * 0.02);
@@ -763,20 +826,7 @@ function buildBoxPlotChart(canvasId, labels, rawByRun, yLabel = 'ns/op (lower is
     type: 'boxplot',
     data: {
       labels,
-      datasets: [{
-        label: 'ns/op distribution',
-        data: rawByRun,
-        backgroundColor: '#388bfd33',
-        borderColor: '#388bfd',
-        borderWidth: 1.5,
-        medianColor: '#f0f6fc',
-        itemRadius: 2,
-        itemStyle: 'circle',
-        itemBackgroundColor: '#8b949e88',
-        outlierRadius: 3,
-        outlierBackgroundColor: '#f8514933',
-        outlierBorderColor: '#f85149',
-      }]
+      datasets
     },
     options: {
       responsive: true,
@@ -784,7 +834,10 @@ function buildBoxPlotChart(canvasId, labels, rawByRun, yLabel = 'ns/op (lower is
       interaction: { mode: 'index', intersect: false },
       ...(onClick ? { onClick } : {}),
       plugins: {
-        legend: { display: false },
+        legend: {
+          display: isSplit,
+          labels: { color: '#8b949e' }
+        },
         tooltip: {
           callbacks: {
             label: (item) => {
