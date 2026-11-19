@@ -407,7 +407,7 @@ async function renderInlineTrend(key) {
   } else {
     trendChart = trendMode === 'box'
       ? buildTrendBox('inline')
-      : buildLineChart('trend-chart', lastTrendData.labels, lastTrendData.scores, lastTrendData.errors);
+      : buildLineChart('trend-chart', lastTrendData.labels, lastTrendData.scores, lastTrendData.errors, lastTrendData.refs);
   }
 }
 
@@ -433,7 +433,7 @@ async function renderTrendFromTab(key) {
   } else {
     trendTabChart = trendTabMode === 'box'
       ? buildTrendBox('tab')
-      : buildLineChart('trend-tab-chart', lastTrendTabData.labels, lastTrendTabData.scores, lastTrendTabData.errors);
+      : buildLineChart('trend-tab-chart', lastTrendTabData.labels, lastTrendTabData.scores, lastTrendTabData.errors, lastTrendTabData.refs);
   }
 }
 
@@ -454,7 +454,7 @@ function setTrendMode(mode) {
   } else {
     trendChart = mode === 'box'
       ? buildTrendBox('inline')
-      : buildLineChart('trend-chart', lastTrendData.labels, lastTrendData.scores, lastTrendData.errors);
+      : buildLineChart('trend-chart', lastTrendData.labels, lastTrendData.scores, lastTrendData.errors, lastTrendData.refs);
   }
 }
 
@@ -475,7 +475,7 @@ function setTrendTabMode(mode) {
   } else {
     trendTabChart = mode === 'box'
       ? buildTrendBox('tab')
-      : buildLineChart('trend-tab-chart', lastTrendTabData.labels, lastTrendTabData.scores, lastTrendTabData.errors);
+      : buildLineChart('trend-tab-chart', lastTrendTabData.labels, lastTrendTabData.scores, lastTrendTabData.errors, lastTrendTabData.refs);
   }
 }
 
@@ -508,6 +508,7 @@ async function loadTrendData(key) {
   const dates       = [];
   const times       = [];
   const shas        = [];
+  const refs        = [];
   const gasPerOpByRun = [];
 
   for (const run of slice) {
@@ -523,6 +524,7 @@ async function loadTrendData(key) {
         dates.push(fmtDateShort(run.date));
         times.push(run.date ? new Date(run.date).toISOString().slice(11, 16) : '—');
         shas.push(shortenSHA(run.sha));
+        refs.push(run.ref || 'main');
         gasPerOpByRun.push(match.secondaryMetrics?.gas?.score ?? null);
       }
     } catch (_) { /* skip failed loads */ }
@@ -535,7 +537,7 @@ async function loadTrendData(key) {
   });
   const hasMgas = mgasScores.some(v => v !== null);
 
-  return { labels, scores, errors, raw, dates, times, shas, hasMgas, mgasScores, mgasRaw };
+  return { labels, scores, errors, raw, dates, times, shas, refs, hasMgas, mgasScores, mgasRaw };
 }
 
 function resetBoxView(which) {
@@ -675,13 +677,25 @@ function showRunDistribution(which, runIdx) {
   if (which === 'inline') trendDistChart = chart; else trendTabDistChart = chart;
 }
 
-function buildLineChart(canvasId, labels, scores, errors) {
+function buildLineChart(canvasId, labels, scores, errors, refs = null) {
   const ctx = el(canvasId).getContext('2d');
-  return new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [{
+
+  const REF_COLORS = ['#388bfd', '#f0883e', '#3fb950', '#db61a2'];
+  const uniqueRefs = refs ? [...new Set(refs)] : [];
+  const datasets = uniqueRefs.length > 1
+    ? uniqueRefs.map((ref, i) => ({
+        label: ref === 'main' ? 'latest main' : `pinned (${shortenSHA(ref)})`,
+        data: scores.map((s, j) => (refs[j] === ref ? s : null)),
+        borderColor: REF_COLORS[i % REF_COLORS.length],
+        backgroundColor: REF_COLORS[i % REF_COLORS.length] + '22',
+        borderWidth: 2,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        fill: true,
+        tension: 0.1,
+        spanGaps: true,
+      }))
+    : [{
         label: 'Score (ns/op)',
         data: scores,
         borderColor: '#388bfd',
@@ -691,14 +705,23 @@ function buildLineChart(canvasId, labels, scores, errors) {
         pointHoverRadius: 7,
         fill: true,
         tension: 0.1,
-      }]
+      }];
+
+  return new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { display: false },
+        legend: {
+          display: uniqueRefs.length > 1,
+          labels: { color: '#8b949e' }
+        },
         tooltip: {
           callbacks: {
             label: ctx => {
