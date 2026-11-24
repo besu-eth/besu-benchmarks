@@ -1799,5 +1799,17 @@
     "cpu_model": "AMD EPYC 7R13 Processor",
     "trigger": "schedule",
     "benchmark_count": 347
+  },
+  {
+    "sha": "cf96cfb0b6049b8d06f204467f42df9d13a246f9",
+    "ref": "main",
+    "date": "2026-11-24T07:21:50Z",
+    "run_id": "45295857194",
+    "benchmark_filter": "org.hyperledger.besu.ethereum.vm.",
+    "runner_os": "Linux",
+    "runner_arch": "X64",
+    "cpu_model": "AMD EPYC 7R13 Processor",
+    "trigger": "schedule",
+    "benchmark_count": 483
   }
 ]
