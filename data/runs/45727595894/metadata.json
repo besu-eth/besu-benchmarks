@@ -1,0 +1,15 @@
+{
+  "sha": "25390b5fa33593ce3095fa5897f890f5b700b072",
+  "ref": "main",
+  "besu_repo": "besu-eth/besu",
+  "date": "2026-11-26T07:35:53Z",
+  "run_id": "45727595894",
+  "benchmark_filter": "org.hyperledger.besu.ethereum.vm.",
+  "trigger": "schedule",
+  "runner_os": "Linux",
+  "runner_arch": "X64",
+  "java_version": "openjdk version 25.0.4.1 2026-08-18 LTS",
+  "cpu_model": "AMD EPYC 7R13 Processor",
+  "cpu_cores": "8",
+  "ram_total": "30Gi"
+}
